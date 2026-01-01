@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tiny Guardians: Ultimate Edition</title>
+    <style>
+        body { margin: 0; background-color: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; font-family: 'Pretendard', sans-serif; overflow: hidden; user-select: none; }
+        #game-container { position: relative; width: 100%; max-width: 500px; height: 100%; background-color: #2c3e50; overflow: hidden; box-shadow: 0 0 30px rgba(0,0,0,0.7); }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
+        .top-hud { padding: 15px; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); display: flex; justify-content: space-between; align-items: center; }
+        .gold-text { color: #ffd700; font-size: 18px; font-weight: bold; }
+
+        /* 스킬 버튼 스타일 */
+        .skill-container { position: absolute; right: 10px; top: 80px; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
+        .skill-btn { width: 50px; height: 50px; border-radius: 12px; border: 2px solid #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; transition: 0.2s; position: relative; }
+        .skill-btn span { position: absolute; bottom: -15px; font-size: 10px; font-weight: bold; width: 100%; text-align: center; }
+        .skill-btn.blizzard { background: #00bfff; }
+        .skill-btn.meteor { background: #e84118; }
+        .skill-btn:active { transform: scale(0.9); }
+        .skill-btn.disabled { opacity: 0.3; filter: grayscale(100%); pointer-events: none; }
+
+        .bottom-hud { padding: 10px 5px; background: rgba(0,0,0,0.9); pointer-events: auto; border-top: 1px solid #555; }
+        .mana-bar-bg { width: 100%; height: 10px; background-color: #444; border-radius: 5px; margin-bottom: 8px; border: 1px solid #666; overflow: hidden; }
+        .mana-bar-fill { height: 100%; background-color: #00bfff; width: 0%; transition: width 0.1s linear; }
+        
+        .card-container { display: flex; justify-content: space-between; gap: 4px; }
+        .card-wrapper { width: 19%; position: relative; display: flex; flex-direction: column; align-items: center; }
+        .upgrade-btn { width: 100%; background: #333; border: 1px solid #ffd700; color: #ffd700; font-size: 9px; padding: 4px 0; margin-bottom: 3px; border-radius: 4px; cursor: pointer; text-align: center; font-weight: bold; }
+        .upgrade-btn.no-gold { border-color: #555; color: #555; pointer-events: none; }
+
+        .card { position: relative; width: 100%; height: 65px; background: #444; border: 2px solid #666; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.1s; }
+        .card.active { border-color: #fff; background: #555; box-shadow: 0 0 10px rgba(255,255,255,0.5); transform: translateY(-3px); }
+        .card.disabled { opacity: 0.4; pointer-events: none; filter: grayscale(100%); }
+        .card-cost { position: absolute; top: -5px; left: -5px; background: #00bfff; color: white; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; border: 2px solid #fff; }
+        .card-lvl { position: absolute; bottom: 2px; right: 3px; font-size: 9px; color: #ffd700; font-weight: bold; }
+        .card-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+
+        #game-over { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; pointer-events: auto; z-index: 100; }
+        .retry-btn { padding: 15px 40px; background-color: #ff4757; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px; font-size: 20px; font-weight: bold; }
+
+        /* 덱 선택 화면 스타일 */
+        #deck-selection { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: auto; z-index: 200; }
+        .deck-selection-title { font-size: 28px; font-weight: bold; margin-bottom: 30px; color: #ffd700; }
+        .deck-list { display: flex; flex-direction: column; gap: 15px; width: 90%; max-width: 400px; }
+        .deck-item { background: #2c3e50; border: 2px solid #555; border-radius: 12px; padding: 20px; cursor: pointer; transition: 0.2s; }
+        .deck-item:hover { border-color: #ffd700; transform: translateY(-2px); box-shadow: 0 4px 15px rgba(255,215,0,0.3); }
+        .deck-item.selected { border-color: #ffd700; background: #34495e; }
+        .deck-name { font-size: 20px; font-weight: bold; margin-bottom: 10px; color: #fff; }
+        .deck-cards { display: flex; gap: 8px; flex-wrap: wrap; }
+        .deck-card-preview { width: 50px; height: 65px; background: #444; border: 2px solid #666; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; position: relative; }
+        .deck-card-preview.unit { border-color: #00d2d3; }
+        .deck-card-preview.spell { border-color: #e84118; }
+        .start-btn { margin-top: 30px; padding: 15px 50px; background-color: #2ed573; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 20px; font-weight: bold; }
+        .start-btn:disabled { background-color: #555; cursor: not-allowed; opacity: 0.5; }
+
+        /* 패 카드 스타일 업데이트 */
+        .card-wrapper { width: 32%; position: relative; display: flex; flex-direction: column; align-items: center; }
+        .card.spell-card { border-color: #e84118; }
+        .card.spell-card.active { border-color: #fff; box-shadow: 0 0 15px rgba(232,65,24,0.7); }
+        .spell-indicator { position: absolute; top: 5px; right: 5px; font-size: 10px; color: #e84118; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+        <div class="top-hud">
+            <div>WAVE <span id="wave-num">1</span> <span id="boss-alert" style="color:#ff4757; display:none; margin-left:10px;">BOSS!</span></div>
+            <div class="gold-text">🪙 <span id="gold">120</span></div>
+        </div>
+
+        
+        <div class="bottom-hud">
+            <div style="text-align:center; font-size:12px; color:#00bfff; font-weight:bold; margin-bottom:4px;">⚡ MANA <span id="mana-text">6</span> / <span id="mana-max">10</span></div>
+            <div class="mana-bar-bg"><div id="mana-bar-fill" class="mana-bar-fill"></div></div>
+            <div class="card-container" id="card-list"></div>
+        </div>
+    </div>
+
+    <div id="deck-selection">
+        <div class="deck-selection-title">덱 선택</div>
+        <div class="deck-list" id="deck-list"></div>
+        <button class="start-btn" id="start-btn" onclick="startGame()" disabled>게임 시작</button>
+    </div>
+
+    <div id="game-over">
+        <h1>GAME OVER</h1>
+        <p>최종 웨이브: <span id="final-wave">0</span></p>
+        <p>Score: <span id="final-score">0</span></p>
+        <button class="retry-btn" onclick="backToMenu()">메뉴로</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('game-container');
+    
+    let width, height, master, units = [], enemies = [], projectiles = [], particles = [];
+    let frame = 0, score = 0, gold = 120, wave = 1, mana = 6, maxMana = 10, shake = 0, isGameOver = false, selectedCard = null;
+    let gameState = 'menu'; // 'menu' or 'game'
+    let currentDeck = [];
+    let deck = []; // 남은 덱 카드들
+    let hand = []; // 현재 패 (최대 3장)
+    let deckIndex = 0; // 덱에서 뽑을 위치
+    let selectedSpell = null; // 선택된 주문 카드
+    let lastUsedCard = null; // 마지막으로 사용한 카드
+    let bossesDefeated = 0; // 처치한 보스 수
+    let enemySpawnTimer = 0; // 적 스폰 타이머
+    let bossSpawnedThisWave = false; // 이번 웨이브에 보스가 스폰되었는지
+
+    const UNIT_TYPES = {
+        knight: { name: '가디언', cost: 3, count: 3, baseHp: 80, baseDmg: 15, range: 25, speed: 0.7, color: '#00d2d3', radius: 8, upgCost: 50, level: 1 },
+        golem: { name: '골렘', cost: 5, count: 1, baseHp: 250, baseDmg: 8, range: 20, speed: 0.35, color: '#636e72', radius: 14, upgCost: 90, level: 1 },
+        archer: { name: '레인저', cost: 4, count: 2, baseHp: 40, baseDmg: 12, range: 120, speed: 0.6, color: '#feca57', radius: 7, upgCost: 60, level: 1 },
+        bomber: { name: '폭탄병', cost: 6, count: 1, baseHp: 50, baseDmg: 35, range: 100, speed: 0.5, color: '#e17055', radius: 8, upgCost: 100, level: 1, exRadius: 45 },
+        mage: { name: '아이스', cost: 5, count: 1, baseHp: 50, baseDmg: 10, range: 90, speed: 0.5, color: '#5f27cd', radius: 9, upgCost: 80, level: 1 }
+    };
+
+    const SPELL_TYPES = {
+        blizzard: { name: '블리자드', cost: 8, icon: '❄️', color: '#00bfff' },
+        meteor: { name: '메테오', cost: 10, icon: '🔥', color: '#e84118' }
+    };
+
+    // 미리 정의된 덱들
+    const DECKS = {
+        balanced: {
+            name: '균형 덱',
+            cards: [
+                {type: 'unit', key: 'knight'},
+                {type: 'unit', key: 'archer'},
+                {type: 'spell', key: 'blizzard'},
+                {type: 'unit', key: 'golem'},
+                {type: 'spell', key: 'meteor'},
+                {type: 'unit', key: 'mage'}
+            ]
+        },
+        aggressive: {
+            name: '공격 덱',
+            cards: [
+                {type: 'unit', key: 'knight'},
+                {type: 'unit', key: 'knight'},
+                {type: 'unit', key: 'bomber'},
+                {type: 'spell', key: 'meteor'},
+                {type: 'unit', key: 'archer'},
+                {type: 'unit', key: 'archer'}
+            ]
+        },
+        defensive: {
+            name: '방어 덱',
+            cards: [
+                {type: 'unit', key: 'golem'},
+                {type: 'unit', key: 'golem'},
+                {type: 'spell', key: 'blizzard'},
+                {type: 'spell', key: 'blizzard'},
+                {type: 'unit', key: 'mage'},
+                {type: 'unit', key: 'knight'}
+            ]
+        }
+    };
+
+    class Master {
+        constructor() { this.x = width/2; this.y = height/2; this.radius = 40; this.hp = 150; this.maxHp = 150; }
+        draw() {
+            ctx.beginPath(); ctx.arc(this.x, this.y, 160, 0, Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fillStyle='#4834d4'; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.stroke();
+            ctx.fillStyle='#333'; ctx.fillRect(this.x-30, this.y+50, 60, 6); ctx.fillStyle='#2ed573'; ctx.fillRect(this.x-30, this.y+50, 60*(this.hp/this.maxHp), 6);
+        }
+    }
+
+    class Unit {
+        constructor(x, y, typeKey) {
+            const d = UNIT_TYPES[typeKey]; const mult = 1 + (d.level-1)*0.25;
+            Object.assign(this, { x, y, type: typeKey, hp: d.baseHp*mult, maxHp: d.baseHp*mult, damage: d.baseDmg*mult, range: d.range, speed: d.speed, color: d.color, radius: d.radius, cooldown: 0 });
+            this.maxCooldown = typeKey==='bomber' ? 70 : typeKey==='archer' ? 45 : 40;
+        }
+        update() {
+            const dM = Math.hypot(this.x-master.x, this.y-master.y);
+            if (dM > 175) { const a = Math.atan2(master.y-this.y, master.x-this.x); this.x += Math.cos(a)*this.speed*2; this.y += Math.sin(a)*this.speed*2; return; }
+            
+            // 타겟이 없거나 죽었으면 가장 가까운 적 찾기
+            if (!this.target || this.target.hp <= 0) {
+                let closestEnemy = null;
+                let closestDist = Infinity;
+                
+                enemies.forEach(e => {
+                    if (e.hp > 0) {
+                        const dist = Math.hypot(e.x - this.x, e.y - this.y);
+                        // 기지 주변 195 범위 내의 적만 고려
+                        const distToMaster = Math.hypot(e.x - master.x, e.y - master.y);
+                        if (distToMaster < 195 && dist < closestDist) {
+                            closestDist = dist;
+                            closestEnemy = e;
+                        }
+                    }
+                });
+                
+                this.target = closestEnemy;
+            }
+            
+            if (this.target) {
+                const d = Math.hypot(this.target.x-this.x, this.target.y-this.y);
+                if (d <= this.range) { if (this.cooldown <= 0) { this.attack(); this.cooldown = this.maxCooldown; } }
+                else { const a = Math.atan2(this.target.y-this.y, this.target.x-this.x); this.x += Math.cos(a)*this.speed; this.y += Math.sin(a)*this.speed; }
+            }
+            if (this.cooldown > 0) this.cooldown--;
+            units.forEach(o => { if(o!==this) { const d = Math.hypot(this.x-o.x, this.y-o.y); if(d < this.radius+o.radius) { const a = Math.atan2(this.y-o.y, this.x-o.x); this.x += Math.cos(a)*0.5; this.y += Math.sin(a)*0.5; } } });
+            if (dM < master.radius + this.radius) { const a = Math.atan2(this.y-master.y, this.x-master.x); this.x = master.x + Math.cos(a)*(master.radius+this.radius); this.y = master.y + Math.sin(a)*(master.radius+this.radius); }
+        }
+        attack() {
+            if (this.type==='knight' || this.type==='golem') { this.target.takeDamage(this.damage); if(this.type==='golem') shake=3; spawnParticles(this.target.x, this.target.y, '#fff', 3); }
+            else projectiles.push(new Projectile(this.x, this.y, this.target, this.type, this.damage));
+        }
+        takeDamage(d) { 
+            this.hp -= d; 
+            if(this.hp <= 0) {
+                spawnParticles(this.x, this.y, this.color, 8);
+            }
+        }
+        draw() { 
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); 
+            ctx.fillStyle=this.color; ctx.fill(); 
+            ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.stroke();
+            // HP 바 표시
+            if(this.hp < this.maxHp) {
+                ctx.fillStyle='#000'; ctx.fillRect(this.x-this.radius, this.y-this.radius-8, this.radius*2, 3);
+                ctx.fillStyle='#2ed573'; ctx.fillRect(this.x-this.radius, this.y-this.radius-8, (this.radius*2)*(this.hp/this.maxHp), 3);
+            }
+        }
+    }
+
+    class Projectile {
+        constructor(x, y, target, type, damage) { Object.assign(this, { x, y, target, type, damage, active: true, speed: type==='bomber'?4:7 }); }
+        update() {
+            const a = Math.atan2(this.target.y-this.y, this.target.x-this.x); this.x += Math.cos(a)*this.speed; this.y += Math.sin(a)*this.speed;
+            if (Math.hypot(this.x-this.target.x, this.y-this.target.y) < 10) {
+                if(this.type==='bomber') { shake=6; enemies.forEach(e => { if(Math.hypot(e.x-this.x, e.y-this.y) < 45) e.takeDamage(this.damage); }); spawnParticles(this.x, this.y, '#e17055', 15); }
+                else { this.target.takeDamage(this.damage); if(this.type==='mage') this.target.slow = 120; spawnParticles(this.x, this.y, '#fff', 3); }
+                this.active = false;
+            }
+        }
+        draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.type==='bomber'?6:4, 0, Math.PI*2); ctx.fillStyle=this.type==='bomber'?'#e17055':this.type==='mage'?'#a29bfe':'#fff'; ctx.fill(); }
+    }
+
+    class Enemy {
+        constructor(isBoss = false) {
+            const a = Math.random()*Math.PI*2; this.x = width/2+Math.cos(a)*350; this.y = height/2+Math.sin(a)*350;
+            this.isBoss = isBoss; this.radius = isBoss ? 22 : 11;
+            
+            // 난이도 계산: 웨이브 + 보스 처치 횟수에 따른 증가
+            const difficultyMultiplier = 1 + bossesDefeated * 0.3; // 보스 처치마다 30% 증가
+            const baseHp = (35 + wave * 8) * difficultyMultiplier;
+            this.hp = baseHp * (isBoss ? 5 : 1); 
+            this.maxHp = this.hp; 
+            this.damage = (isBoss ? 40 : 15) * difficultyMultiplier; // 공격력도 증가
+            this.slow = 0;
+            this.target = null; // 타겟 (기지 또는 유닛)
+            this.searchRange = 200; // 탐색 범위
+            this.attackRange = this.radius + 15; // 공격 범위
+            this.attackCooldown = 0;
+        }
+        update() {
+            // 타겟 찾기
+            if (!this.target || (this.target.hp !== undefined && this.target.hp <= 0)) {
+                this.findTarget();
+            }
+            
+            // 타겟이 있으면 타겟으로 이동, 없으면 기지로 이동
+            let targetX, targetY;
+            if (this.target) {
+                if (this.target === master) {
+                    targetX = master.x;
+                    targetY = master.y;
+                } else {
+                    // 유닛 타겟
+                    targetX = this.target.x;
+                    targetY = this.target.y;
+                }
+            } else {
+                targetX = master.x;
+                targetY = master.y;
+            }
+            
+            const dist = Math.hypot(targetX - this.x, targetY - this.y);
+            
+            // 공격 범위 내에 있으면 공격
+            if (dist <= this.attackRange && this.attackCooldown <= 0) {
+                if (this.target === master) {
+                    master.hp -= this.damage;
+                    this.hp = 0;
+                    shake = 10;
+                } else if (this.target && this.target.hp !== undefined) {
+                    // 유닛 공격
+                    this.target.takeDamage(this.damage * 0.6); // 유닛 공격은 60% 데미지
+                    this.attackCooldown = 30; // 공격 쿨타임
+                }
+            } else if (dist > this.attackRange) {
+                // 타겟으로 이동
+                const a = Math.atan2(targetY - this.y, targetX - this.x);
+                const s = (this.slow > 0 ? 0.2 : 0.6) + wave * 0.04;
+                this.x += Math.cos(a) * s;
+                this.y += Math.sin(a) * s;
+            }
+            
+            if (this.slow > 0) this.slow--;
+            if (this.attackCooldown > 0) this.attackCooldown--;
+        }
+        findTarget() {
+            this.target = null;
+            const distToMaster = Math.hypot(master.x - this.x, master.y - this.y);
+            
+            // 탐색 범위 내에 기지가 있으면 기지를 우선 타겟
+            if (distToMaster <= this.searchRange) {
+                this.target = master;
+                return;
+            }
+            
+            // 탐색 범위 내의 가장 가까운 아군 유닛 찾기
+            let closestUnit = null;
+            let closestDist = this.searchRange;
+            
+            units.forEach(unit => {
+                if (unit.hp > 0) {
+                    const dist = Math.hypot(unit.x - this.x, unit.y - this.y);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestUnit = unit;
+                    }
+                }
+            });
+            
+            if (closestUnit) {
+                this.target = closestUnit;
+            }
+        }
+        takeDamage(d) { 
+            this.hp -= d; 
+            if(this.hp <= 0) { 
+                score += this.isBoss ? 500 : 10; 
+                gold += this.isBoss ? 100 : 10; 
+                if(this.isBoss) {
+                    bossesDefeated++;
+                }
+                updateUI(); 
+            } 
+        }
+        draw() { 
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); 
+            ctx.fillStyle=this.slow>0?'#74b9ff':this.isBoss?'#2f3542':'#ff4757'; ctx.fill(); 
+            if(this.isBoss) { ctx.strokeStyle='#ff4757'; ctx.lineWidth=2; ctx.stroke(); }
+            ctx.fillStyle='#000'; ctx.fillRect(this.x-10, this.y-this.radius-5, 20, 3);
+            ctx.fillStyle='#ff4757'; ctx.fillRect(this.x-10, this.y-this.radius-5, 20*(this.hp/this.maxHp), 3);
+        }
+    }
+
+    class Particle {
+        constructor(x, y, color) { this.x=x; this.y=y; this.c=color; this.v={x:(Math.random()-0.5)*4, y:(Math.random()-0.5)*4}; this.l=1.0; }
+        update() { this.x+=this.v.x; this.y+=this.v.y; this.l-=0.03; }
+        draw() { ctx.globalAlpha=this.l; ctx.fillStyle=this.c; ctx.beginPath(); ctx.arc(this.x,this.y,2,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1.0; }
+    }
+
+    function spawnParticles(x, y, c, n) { for(let i=0; i<n; i++) particles.push(new Particle(x, y, c)); }
+
+    function useSpell(spellKey, x, y) {
+        if(spellKey === 'blizzard' && mana >= 8) {
+            mana -= 8; shake = 5;
+            enemies.forEach(e => {
+                if(Math.hypot(e.x - x, e.y - y) < 150) {
+                    e.slow = 300;
+                }
+            });
+            spawnParticles(x, y, '#00bfff', 50);
+        } else if(spellKey === 'meteor' && mana >= 10) {
+            mana -= 10; shake = 15;
+            enemies.forEach(e => {
+                if(Math.hypot(e.x - x, e.y - y) < 100) {
+                    e.takeDamage(100 + wave * 10);
+                }
+            });
+            spawnParticles(x, y, '#e84118', 80);
+        }
+        updateUI();
+    }
+
+    function drawCard() {
+        if(hand.length < 3 && deck.length > 0) {
+            let startIndex = deckIndex;
+            let card = null;
+            
+            // 패에 없는 카드이고, 마지막 사용한 카드가 아닌 카드를 찾기
+            while (true) {
+                const currentCard = deck[deckIndex];
+                const cardKey = `${currentCard.type}_${currentCard.key}`;
+                
+                // 패에 이미 있는지 확인
+                const isInHand = hand.some(c => `${c.type}_${c.key}` === cardKey);
+                // 마지막 사용한 카드인지 확인
+                const isLastUsed = lastUsedCard && `${lastUsedCard.type}_${lastUsedCard.key}` === cardKey;
+                
+                // 적합한 카드를 찾았으면
+                if (!isInHand && !isLastUsed) {
+                    card = currentCard;
+                    deckIndex = (deckIndex + 1) % deck.length;
+                    break;
+                }
+                
+                deckIndex = (deckIndex + 1) % deck.length;
+                
+                // 덱을 한 바퀴 돌았는지 확인
+                if (deckIndex === startIndex) {
+                    // 한 바퀴 돌았는데 적합한 카드가 없으면, 마지막 사용한 카드 제외 조건만 무시하고 찾기
+                    let foundWithoutLastUsed = false;
+                    for (let i = 0; i < deck.length; i++) {
+                        const checkCard = deck[(startIndex + i) % deck.length];
+                        const checkKey = `${checkCard.type}_${checkCard.key}`;
+                        const checkIsInHand = hand.some(c => `${c.type}_${c.key}` === checkKey);
+                        if (!checkIsInHand) {
+                            card = checkCard;
+                            deckIndex = ((startIndex + i) % deck.length + 1) % deck.length;
+                            foundWithoutLastUsed = true;
+                            break;
+                        }
+                    }
+                    // 그래도 없으면 그냥 뽑기
+                    if (!foundWithoutLastUsed) {
+                        card = currentCard;
+                        deckIndex = (deckIndex + 1) % deck.length;
+                    }
+                    break;
+                }
+            }
+            
+            if (card) {
+                // 카드 객체를 복사해서 새로운 객체 생성
+                hand.push({type: card.type, key: card.key});
+            }
+        }
+    }
+
+    function useCard(cardIndex) {
+        if(cardIndex >= hand.length) return;
+        const card = hand[cardIndex];
+        const cardCost = card.type === 'spell' ? SPELL_TYPES[card.key].cost : UNIT_TYPES[card.key].cost;
+        
+        if(mana < cardCost) return;
+        
+        if(card.type === 'spell') {
+            selectedSpell = card;
+            selectedCard = null;
+            canvas.style.cursor = 'crosshair';
+        } else if(card.type === 'unit') {
+            selectedCard = card.key;
+            selectedSpell = null;
+            canvas.style.cursor = 'pointer';
+        }
+        updateUI();
+    }
+
+    function playCard(x, y) {
+        if(selectedSpell) {
+            const spell = SPELL_TYPES[selectedSpell.key];
+            if(mana >= spell.cost) {
+                useSpell(selectedSpell.key, x, y);
+                const cardIndex = hand.findIndex(c => c.type === 'spell' && c.key === selectedSpell.key);
+                if(cardIndex !== -1) {
+                    // 사용한 카드를 저장
+                    lastUsedCard = {...hand[cardIndex]};
+                    hand.splice(cardIndex, 1);
+                    drawCard();
+                }
+                selectedSpell = null;
+                canvas.style.cursor = 'default';
+            }
+        } else if(selectedCard) {
+            const unit = UNIT_TYPES[selectedCard];
+            if(mana >= unit.cost) {
+                mana -= unit.cost;
+                for(let i=0; i<unit.count; i++) {
+                    units.push(new Unit(x+(Math.random()-0.5)*35, y+(Math.random()-0.5)*35, selectedCard));
+                }
+                const cardIndex = hand.findIndex(c => c.type === 'unit' && c.key === selectedCard);
+                if(cardIndex !== -1) {
+                    // 사용한 카드를 저장
+                    lastUsedCard = {...hand[cardIndex]};
+                    hand.splice(cardIndex, 1);
+                    drawCard();
+                }
+                selectedCard = null;
+                canvas.style.cursor = 'default';
+            }
+        }
+        updateUI();
+    }
+
+    function updateUI() {
+        if(gameState === 'game') {
+            document.getElementById('gold').innerText = gold;
+            document.getElementById('mana-text').innerText = Math.floor(mana);
+            document.getElementById('mana-max').innerText = maxMana;
+            document.getElementById('mana-bar-fill').style.width = (mana/maxMana*100)+'%';
+            renderHand();
+        }
+    }
+
+    function renderHand() {
+        const container = document.getElementById('card-list'); container.innerHTML = '';
+        for(let i = 0; i < 3; i++) {
+            const wrap = document.createElement('div'); wrap.className = 'card-wrapper';
+            if(i < hand.length) {
+                const card = hand[i];
+                let cardData, cardName, cardCost, cardColor, cardIcon, isSpell = false;
+                
+                if(card.type === 'unit') {
+                    cardData = UNIT_TYPES[card.key];
+                    cardName = cardData.name;
+                    cardCost = cardData.cost;
+                    cardColor = cardData.color;
+                    cardIcon = '';
+                } else {
+                    cardData = SPELL_TYPES[card.key];
+                    cardName = cardData.name;
+                    cardCost = cardData.cost;
+                    cardColor = cardData.color;
+                    cardIcon = cardData.icon;
+                    isSpell = true;
+                }
+                
+                const isActive = (selectedCard === card.key && card.type === 'unit') || (selectedSpell && selectedSpell.key === card.key && card.type === 'spell');
+                const canUse = mana >= cardCost;
+                
+                wrap.innerHTML = `
+                    <div class="card ${isSpell ? 'spell-card' : ''} ${isActive ? 'active' : ''} ${!canUse ? 'disabled' : ''}" onclick="useCard(${i})">
+                        <div class="card-cost">${cardCost}</div>
+                        <div class="card-icon" style="background:${cardColor};">
+                            ${isSpell ? cardIcon : ''}
+                        </div>
+                        <div style="font-size:9px; font-weight:bold; margin-top:3px;">${cardName}</div>
+                        ${!isSpell ? `<div class="card-lvl">Lv.${cardData.level}</div>` : ''}
+                    </div>`;
+            } else {
+                wrap.innerHTML = `<div class="card" style="opacity:0.3; border-style:dashed;"></div>`;
+            }
+            container.appendChild(wrap);
+        }
+    }
+
+    function renderDeckSelection() {
+        const container = document.getElementById('deck-list');
+        container.innerHTML = '';
+        Object.keys(DECKS).forEach(deckKey => {
+            const deckData = DECKS[deckKey];
+            const item = document.createElement('div');
+            item.className = 'deck-item';
+            item.onclick = () => selectDeck(deckKey);
+            
+            let cardsHtml = '';
+            deckData.cards.forEach(card => {
+                const isSpell = card.type === 'spell';
+                const cardData = isSpell ? SPELL_TYPES[card.key] : UNIT_TYPES[card.key];
+                cardsHtml += `<div class="deck-card-preview ${card.type}" style="background:${cardData.color};">
+                    ${isSpell ? cardData.icon : ''}
+                    <div style="font-size:8px; margin-top:3px;">${cardData.name}</div>
+                </div>`;
+            });
+            
+            item.innerHTML = `
+                <div class="deck-name">${deckData.name}</div>
+                <div class="deck-cards">${cardsHtml}</div>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    function selectDeck(deckKey) {
+        currentDeck = [...DECKS[deckKey].cards];
+        startGame();
+    }
+
+    function startGame() {
+        if(currentDeck.length === 0) return;
+        gameState = 'game';
+        deck = [...currentDeck];
+        deckIndex = 0;
+        hand = [];
+        selectedCard = null;
+        selectedSpell = null;
+        lastUsedCard = null;
+        
+        // 초기 패 3장 뽑기 (중복 없이)
+        for(let i = 0; i < 3; i++) {
+            drawCard();
+        }
+        
+        document.getElementById('deck-selection').style.display = 'none';
+        resetGame();
+    }
+
+    function backToMenu() {
+        gameState = 'menu';
+        document.getElementById('game-over').style.display = 'none';
+        document.getElementById('deck-selection').style.display = 'flex';
+        currentDeck = [];
+        deck = [];
+        hand = [];
+        selectedCard = null;
+        selectedSpell = null;
+        lastUsedCard = null;
+        renderDeckSelection();
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        if(gameState !== 'game') return;
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        if(selectedSpell || selectedCard) {
+            playCard(x, y);
+        }
+    });
+
+    function resetGame() {
+        gold=120; wave=1; mana=6; score=0; isGameOver=false; units=[]; enemies=[]; projectiles=[]; frame=0; maxMana=10;
+        bossesDefeated=0; enemySpawnTimer=0; bossSpawnedThisWave=false;
+        master = new Master(); document.getElementById('game-over').style.display='none'; 
+        Object.keys(UNIT_TYPES).forEach(k => { UNIT_TYPES[k].level = 1; UNIT_TYPES[k].upgCost = k==='knight'?50:k==='golem'?90:k==='archer'?60:k==='bomber'?100:80; });
+        updateUI();
+    }
+
+    function loop() {
+        if(gameState === 'game' && !isGameOver) {
+            ctx.fillStyle='#1e272e'; ctx.fillRect(0,0,width,height);
+            if(shake > 0) { ctx.save(); ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake); shake*=0.9; }
+            master.draw(); 
+            units.forEach((u,i) => { u.update(); u.draw(); if(u.hp<=0) units.splice(i,1); });
+            enemies.forEach((e,i) => { e.update(); e.draw(); if(e.hp<=0) enemies.splice(i,1); });
+            projectiles.forEach((p,i) => { p.update(); p.draw(); if(!p.active) projectiles.splice(i,1); });
+            particles.forEach((p,i) => { p.update(); p.draw(); if(p.l<=0) particles.splice(i,1); });
+            
+            if(frame%50===0 && mana < maxMana) { mana = Math.min(maxMana, mana+0.8); updateUI(); }
+            
+            // 적 스폰 시스템 개선
+            enemySpawnTimer++;
+            const baseSpawnInterval = Math.max(60, 100 - bossesDefeated * 5); // 보스 처치마다 스폰 간격 감소 (더 빠르게)
+            const spawnCount = 1 + Math.floor(bossesDefeated / 2); // 보스 처치마다 스폰 수 증가
+            
+            if(enemySpawnTimer >= baseSpawnInterval) {
+                enemySpawnTimer = 0;
+                
+                // 5웨이브마다 보스 등장 (한 웨이브에 하나만)
+                if(wave % 5 === 0 && wave > 0 && !bossSpawnedThisWave && enemies.filter(e => e.isBoss).length === 0) {
+                    enemies.push(new Enemy(true)); // 보스 등장
+                    bossSpawnedThisWave = true; // 이번 웨이브에 보스 스폰 표시
+                    document.getElementById('boss-alert').style.display = 'inline';
+                    setTimeout(() => document.getElementById('boss-alert').style.display = 'none', 3000);
+                } else {
+                    // 일반 적 스폰 (보스 처치 횟수에 따라 여러 마리)
+                    for(let i = 0; i < spawnCount; i++) {
+                        enemies.push(new Enemy());
+                    }
+                }
+            }
+            
+            if(frame%1200===0) { 
+                wave++; 
+                bossSpawnedThisWave = false; // 새 웨이브 시작 시 보스 스폰 플래그 리셋
+                document.getElementById('wave-num').innerText = wave; 
+                if(maxMana < 20) maxMana++; 
+            }
+            if(master.hp <= 0) { isGameOver=true; document.getElementById('game-over').style.display='flex'; document.getElementById('final-score').innerText=score; document.getElementById('final-wave').innerText=wave; }
+            if(shake > 0) ctx.restore(); frame++;
+        }
+        requestAnimationFrame(loop);
+    }
+
+    width = container.clientWidth; height = container.clientHeight; canvas.width=width; canvas.height=height;
+    renderDeckSelection();
+    loop();
+</script>
+</body>
+</html>
